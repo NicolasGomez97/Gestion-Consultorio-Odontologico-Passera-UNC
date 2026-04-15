@@ -578,6 +578,133 @@ def get_stats() -> Dict:
 
 
 # ─────────────────────────────────────────────────────────────
+# REPORTES
+# ─────────────────────────────────────────────────────────────
+
+def reporte_turnos(desde: str, hasta: str,
+                   odontologo_id: Optional[int] = None,
+                   estado: Optional[str] = None) -> List[Dict]:
+    clauses = ["t.fecha BETWEEN ? AND ?"]
+    params: List[Any] = [desde, hasta]
+    if odontologo_id:
+        clauses.append("t.odontologo_id = ?")
+        params.append(odontologo_id)
+    if estado:
+        clauses.append("t.estado = ?")
+        params.append(estado)
+    where = " AND ".join(clauses)
+    with get_connection() as conn:
+        rows = conn.execute(f"""
+            SELECT t.fecha, t.hora, t.duracion_min,
+                   p.apellido || ', ' || p.nombre AS paciente,
+                   o.apellido || ', ' || o.nombre AS odontologo,
+                   t.motivo, t.estado, t.notas
+            FROM turnos t
+            JOIN pacientes  p ON p.id = t.paciente_id
+            JOIN odontologos o ON o.id = t.odontologo_id
+            WHERE {where}
+            ORDER BY t.fecha, t.hora
+        """, params).fetchall()
+        return [dict(r) for r in rows]
+
+
+def reporte_prestaciones(desde: str, hasta: str,
+                          odontologo_id: Optional[int] = None,
+                          obra_social_id: Optional[int] = None) -> List[Dict]:
+    clauses = ["rp.fecha BETWEEN ? AND ?"]
+    params: List[Any] = [desde, hasta]
+    if odontologo_id:
+        clauses.append("rp.odontologo_id = ?")
+        params.append(odontologo_id)
+    if obra_social_id:
+        clauses.append("rp.obra_social_id = ?")
+        params.append(obra_social_id)
+    where = " AND ".join(clauses)
+    with get_connection() as conn:
+        rows = conn.execute(f"""
+            SELECT rp.fecha,
+                   p.apellido || ', ' || p.nombre AS paciente,
+                   o.apellido || ', ' || o.nombre AS odontologo,
+                   n.codigo AS cod_nomenclador,
+                   n.descripcion AS prestacion,
+                   n.categoria,
+                   rp.numero_fdi,
+                   rp.monto,
+                   COALESCE(os.nombre, 'Particular') AS obra_social,
+                   CASE rp.enviado_federacion WHEN 1 THEN 'Sí' ELSE 'No' END AS enviado_fed
+            FROM registro_prestaciones rp
+            JOIN pacientes   p  ON p.id  = rp.paciente_id
+            JOIN odontologos o  ON o.id  = rp.odontologo_id
+            JOIN nomenclador n  ON n.id  = rp.nomenclador_id
+            LEFT JOIN obras_sociales os ON os.id = rp.obra_social_id
+            WHERE {where}
+            ORDER BY rp.fecha DESC
+        """, params).fetchall()
+        return [dict(r) for r in rows]
+
+
+def reporte_por_odontologo(desde: str, hasta: str) -> List[Dict]:
+    """Resumen de prestaciones y facturación agrupado por odontólogo."""
+    with get_connection() as conn:
+        rows = conn.execute("""
+            SELECT o.apellido || ', ' || o.nombre AS odontologo,
+                   o.especialidad,
+                   COUNT(rp.id)          AS cant_prestaciones,
+                   COALESCE(SUM(rp.monto), 0) AS total_facturado,
+                   COUNT(DISTINCT rp.paciente_id) AS cant_pacientes
+            FROM registro_prestaciones rp
+            JOIN odontologos o ON o.id = rp.odontologo_id
+            WHERE rp.fecha BETWEEN ? AND ?
+            GROUP BY rp.odontologo_id
+            ORDER BY total_facturado DESC
+        """, (desde, hasta)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def reporte_pacientes_por_obra_social() -> List[Dict]:
+    """Cantidad de pacientes activos por obra social."""
+    with get_connection() as conn:
+        rows = conn.execute("""
+            SELECT COALESCE(os.nombre, 'Sin obra social') AS obra_social,
+                   COUNT(p.id) AS cant_pacientes,
+                   COUNT(CASE WHEN p.sexo='M' THEN 1 END) AS masculino,
+                   COUNT(CASE WHEN p.sexo='F' THEN 1 END) AS femenino
+            FROM pacientes p
+            LEFT JOIN obras_sociales os ON os.id = p.obra_social_id
+            WHERE p.activo = 1
+            GROUP BY p.obra_social_id
+            ORDER BY cant_pacientes DESC
+        """).fetchall()
+        return [dict(r) for r in rows]
+
+
+def reporte_pendientes_federacion() -> List[Dict]:
+    """Prestaciones aún no enviadas a la Federación."""
+    with get_connection() as conn:
+        rows = conn.execute("""
+            SELECT rp.id,
+                   rp.fecha,
+                   p.apellido || ', ' || p.nombre AS paciente,
+                   p.dni,
+                   rp.num_afiliado,
+                   COALESCE(os.nombre, 'Particular') AS obra_social,
+                   o.apellido || ', ' || o.nombre AS odontologo,
+                   n.codigo AS cod_nomenclador,
+                   n.descripcion AS prestacion,
+                   rp.numero_fdi,
+                   rp.monto
+            FROM registro_prestaciones rp
+            JOIN pacientes   p  ON p.id  = rp.paciente_id
+            JOIN odontologos o  ON o.id  = rp.odontologo_id
+            JOIN nomenclador n  ON n.id  = rp.nomenclador_id
+            LEFT JOIN obras_sociales os ON os.id = rp.obra_social_id
+            WHERE rp.enviado_federacion = 0
+            ORDER BY rp.fecha
+        """).fetchall()
+        return [dict(r) for r in rows]
+
+
+# ─────────────────────────────────────────────────────────────
 # USUARIOS
 # ─────────────────────────────────────────────────────────────
 

@@ -56,6 +56,7 @@ class MainApp(tk.Tk):
         from ui.periodontograma_ui import PeriodontogramaFrame
         from ui.prestaciones_ui import PrestacionesFrame
         from ui.usuarios_ui     import UsuariosFrame
+        from ui.reportes_ui     import ReportesFrame
 
         self._pages: Dict[str, tk.Frame] = {}
         self._current_page: Optional[str] = None
@@ -87,6 +88,7 @@ class MainApp(tk.Tk):
             ("prestaciones",    PrestacionesFrame),
             ("odontologos",     OdontologosFrame),
             ("usuarios",        UsuariosFrame),
+            ("reportes",        ReportesFrame),
         ]:
             frame = cls(self._content)
             frame.grid(row=0, column=0, sticky="nsew")
@@ -116,6 +118,7 @@ class MainApp(tk.Tk):
             ("💊  Prestaciones",      "prestaciones"),
             ("👨‍⚕️  Odontólogos",     "odontologos"),
             ("🔑  Usuarios",          "usuarios"),
+            ("📊  Reportes",          "reportes"),
         ]
 
         self._nav_buttons: Dict[str, tk.Button] = {}
