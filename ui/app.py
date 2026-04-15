@@ -140,7 +140,13 @@ class MainApp(tk.Tk):
         tk.Label(parent, text="Ramiro Nicolas Gomez",
                 font=FONTS["small"],
                 bg=COLORS["sidebar_bg"], fg=COLORS["text_light"]).pack(side="bottom", pady=(0, 2))
-        tk.Label(parent, text="Desarrollado por:",
+        tk.Label(parent, text="David Macías",
+                font=FONTS["small"],
+                bg=COLORS["sidebar_bg"], fg=COLORS["text_light"]).pack(side="bottom", pady=(0, 2))
+        tk.Label(parent, text=" Matías Rodríguez",
+                font=FONTS["small"],
+                bg=COLORS["sidebar_bg"], fg=COLORS["text_light"]).pack(side="bottom", pady=(0, 2))
+        tk.Label(parent, text="Desarrollado:",
                  font=FONTS["small"],
                  bg=COLORS["sidebar_bg"], fg=COLORS["text_light"]).pack(side="bottom", pady=(0, 2))
         tk.Label(parent, text="v1.0 — UNC 2024",
