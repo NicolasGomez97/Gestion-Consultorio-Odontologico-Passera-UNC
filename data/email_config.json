@@ -1,0 +1,10 @@
+{
+  "smtp_server": "smtp.gmail.com",
+  "smtp_port": 587,
+  "use_tls": true,
+  "username": "consultorioodontologicopassera@gmail.com",
+  "password": "wybr rokj etus suwv",
+  "from_name": "Consultorio Odontológico Passera",
+  "from_address": "consultorioodontologicopassera@gmail.com",
+  "enabled": true
+}
