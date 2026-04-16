@@ -13,6 +13,7 @@ from typing import List, Dict, Optional
 
 import models
 from ui.theme import COLORS, FONTS
+from ui.widgets import DateEntry
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -80,13 +81,13 @@ def _fill_tree(tree: ttk.Treeview, columnas: List[str], filas: List[Dict]):
         tree.insert("", "end", values=vals, tags=(tag,))
 
 
-def _fecha_entry(parent: tk.Widget, label: str, default: str) -> tk.StringVar:
+def _fecha_entry(parent: tk.Widget, label: str, default: str) -> DateEntry:
     tk.Label(parent, text=label, bg=COLORS["bg"],
              font=FONTS["body"], fg=COLORS["text"]).pack(side="left", padx=(8, 2))
-    var = tk.StringVar(value=default)
-    tk.Entry(parent, textvariable=var, width=11,
-             font=FONTS["body"]).pack(side="left", padx=(0, 8))
-    return var
+    entry = DateEntry(parent)
+    entry.set(default)
+    entry.pack(side="left", padx=(0, 8))
+    return entry
 
 
 # ─────────────────────────────────────────────────────────────────────────────
