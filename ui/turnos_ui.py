@@ -6,6 +6,7 @@ from tkinter import ttk, messagebox
 from typing import Optional
 import datetime
 import models
+import email_service
 from ui.theme import COLORS, FONTS
 from ui.app import app_state
 from ui.widgets import DateEntry
@@ -66,6 +67,8 @@ class TurnosFrame(tk.Frame):
 
         ttk.Button(ctrl, text="➕ Nuevo Turno", style="Accent.TButton",
                    command=self._new).pack(side="right", padx=8)
+        ttk.Button(ctrl, text="⚙️ Config. Email",
+                   command=self._config_email).pack(side="right", padx=4)
 
         # ── Tabla de turnos ───────────────────────────────────────────────────
         body = tk.Frame(self, bg=COLORS["bg"], padx=16)
@@ -188,6 +191,10 @@ class TurnosFrame(tk.Frame):
         if turno:
             app_state.set_paciente(turno["paciente_id"])
             self.winfo_toplevel().show_page("pacientes")
+
+    def _config_email(self):
+        dlg = EmailConfigDialog(self)
+        self.wait_window(dlg)
 
     def on_show(self):
         self._odontologos = models.get_odontologos()
@@ -364,7 +371,141 @@ class TurnoDialog(tk.Toplevel):
             "estado":        self._estado_var.get().lower(),
             "notas":         self._notas.get("1.0", "end-1c").strip(),
         }
+        is_new = not self._id
         if self._id:
             data["id"] = self._id
-        models.save_turno(data)
+        turno_id = models.save_turno(data)
+
+        # Notificar al paciente por email solo al crear un turno nuevo.
+        # Guardamos referencia al padre antes de destruir este diálogo.
+        if is_new:
+            paciente   = models.get_paciente(pac_id)
+            odontologo = models.get_odontologo(od_id)
+            data["id"] = turno_id
+            parent_widget = self.master
+
+            def _on_ok():
+                try:
+                    parent_widget.after(0, lambda: messagebox.showinfo(
+                        "Email enviado",
+                        "Se envió la notificación de turno al paciente.",
+                    ))
+                except Exception:
+                    pass
+
+            def _on_err(err: str):
+                try:
+                    parent_widget.after(0, lambda: messagebox.showwarning(
+                        "Email no enviado",
+                        f"No se pudo enviar la notificación al paciente:\n{err}",
+                    ))
+                except Exception:
+                    pass
+
+            email_service.send_turno_notification(
+                turno=data,
+                paciente=paciente,
+                odontologo=odontologo,
+                on_success=_on_ok,
+                on_error=_on_err,
+            )
+
+        self.destroy()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DIÁLOGO DE CONFIGURACIÓN DE EMAIL
+# ─────────────────────────────────────────────────────────────────────────────
+
+class EmailConfigDialog(tk.Toplevel):
+    """Permite configurar el servidor SMTP para envío de notificaciones."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Configuración de Email")
+        self.geometry("480x420")
+        self.resizable(False, False)
+        self.grab_set()
+        self.configure(bg=COLORS["bg"])
+        self._cfg = email_service.load_config()
+        self._vars = {}
+        self._build()
+
+    def _build(self):
+        frame = tk.Frame(self, bg=COLORS["bg"], padx=24, pady=18)
+        frame.pack(fill="both", expand=True)
+        frame.columnconfigure(1, weight=1)
+
+        tk.Label(frame, text="Configuración de Notificaciones por Email",
+                 font=FONTS["subtitle"], bg=COLORS["bg"]).grid(
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 12))
+
+        def fila(r, label, key, show=""):
+            tk.Label(frame, text=label, font=FONTS["body"],
+                     bg=COLORS["bg"]).grid(row=r, column=0, sticky="e", padx=6, pady=6)
+            v = tk.StringVar(value=str(self._cfg.get(key, "")))
+            self._vars[key] = v
+            ttk.Entry(frame, textvariable=v, width=28, show=show).grid(
+                row=r, column=1, sticky="ew", padx=6)
+
+        fila(1, "Servidor SMTP",    "smtp_server")
+        fila(2, "Puerto",           "smtp_port")
+        fila(3, "Usuario",          "username")
+        fila(4, "Contraseña",       "password", show="*")
+        fila(5, "Nombre remitente", "from_name")
+        fila(6, "Email remitente",  "from_address")
+
+        # TLS
+        self._tls_var = tk.BooleanVar(value=bool(self._cfg.get("use_tls", True)))
+        ttk.Checkbutton(frame, text="Usar STARTTLS (recomendado, puerto 587)",
+                        variable=self._tls_var).grid(
+            row=7, column=0, columnspan=2, sticky="w", padx=6, pady=6)
+
+        # Habilitado
+        self._enabled_var = tk.BooleanVar(value=bool(self._cfg.get("enabled", False)))
+        ttk.Checkbutton(frame, text="Habilitar envío de notificaciones",
+                        variable=self._enabled_var).grid(
+            row=8, column=0, columnspan=2, sticky="w", padx=6, pady=(0, 10))
+
+        # Botones
+        btn_bar = tk.Frame(self, bg=COLORS["bg"])
+        btn_bar.pack(fill="x", padx=24, pady=(0, 16))
+
+        ttk.Button(btn_bar, text="🔌 Probar conexión",
+                   command=self._test).pack(side="left", padx=4)
+        ttk.Button(btn_bar, text="💾 Guardar",
+                   style="Accent.TButton", command=self._save).pack(side="right", padx=4)
+        ttk.Button(btn_bar, text="Cancelar",
+                   command=self.destroy).pack(side="right", padx=4)
+
+    def _collect(self) -> dict:
+        return {
+            "smtp_server":   self._vars["smtp_server"].get().strip(),
+            "smtp_port":     int(self._vars["smtp_port"].get() or 587),
+            "use_tls":       self._tls_var.get(),
+            "username":      self._vars["username"].get().strip(),
+            "password":      self._vars["password"].get(),
+            "from_name":     self._vars["from_name"].get().strip(),
+            "from_address":  self._vars["from_address"].get().strip(),
+            "enabled":       self._enabled_var.get(),
+        }
+
+    def _test(self):
+        cfg = self._collect()
+        if not cfg["smtp_server"]:
+            messagebox.showerror("Error", "Ingrese el servidor SMTP.", parent=self)
+            return
+        self.configure(cursor="watch")
+        self.update()
+        err = email_service.test_connection(cfg)
+        self.configure(cursor="")
+        if err:
+            messagebox.showerror("Conexión fallida", f"No se pudo conectar:\n{err}", parent=self)
+        else:
+            messagebox.showinfo("Conexión exitosa", "La conexión al servidor SMTP fue exitosa.", parent=self)
+
+    def _save(self):
+        cfg = self._collect()
+        email_service.save_config(cfg)
+        messagebox.showinfo("Guardado", "Configuración de email guardada.", parent=self)
         self.destroy()
