@@ -25,13 +25,13 @@ STEP = TS + GAP  # total step per tooth
 
 # ── Colores por estado ─────────────────────────────────────────────────────────
 STATE_COLORS = {
-    "Sano":       "#FFFFFF",
-    "Caries":     "#E53E3E",
-    "Obturacion": "#3182CE",
-    "Fractura":   "#718096",
-    "Pendiente":  "#BEE3F8",
+    "sano":       "#FFFFFF",
+    "caries":     "#E53E3E",
+    "obturacion": "#3182CE",
+    "fractura":   "#718096",
+    "pendiente":  "#BEE3F8",
 }
-STATE_CYCLE = ["Sano", "Caries", "Obturacion", "Fractura", "Pendiente"]
+STATE_CYCLE = ["sano", "caries", "obturacion", "fractura", "pendiente"]
 
 # ── Colores de condición del diente completo ───────────────────────────────────
 CONDICION_COLORS = {
