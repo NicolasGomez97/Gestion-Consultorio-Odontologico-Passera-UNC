@@ -186,7 +186,7 @@ class ReporteTurnosTab(tk.Frame):
 
     def _generar(self):
         od_id = self._od_map.get(self._od_var.get())
-        estado = None if self._est_var.get() == "Todos" else self._est_var.get()
+        estado = None if self._est_var.get() == "Todos" else self._est_var.get().lower()
         try:
             rows = models.reporte_turnos(
                 self._desde.get(), self._hasta.get(), od_id, estado)
