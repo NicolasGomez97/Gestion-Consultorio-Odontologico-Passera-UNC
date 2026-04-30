@@ -245,6 +245,12 @@ class UsuarioDialog(tk.Toplevel):
             models.save_usuario(data)
             self.destroy()
         except Exception as exc:
-            messagebox.showerror("Error al guardar",
-                                 f"No se pudo guardar el usuario:\n{exc}",
-                                 parent=self)
+            if "UNIQUE" in str(exc).upper():
+                messagebox.showerror("Usuario duplicado",
+                                     f"El nombre de usuario '{data['username']}' ya existe.\n"
+                                     "Elija un nombre de usuario diferente.",
+                                     parent=self)
+            else:
+                messagebox.showerror("Error al guardar",
+                                     "No se pudo guardar el usuario. Intente nuevamente.",
+                                     parent=self)
