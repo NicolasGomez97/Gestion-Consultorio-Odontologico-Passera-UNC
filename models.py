@@ -138,14 +138,14 @@ def delete_paciente(id_: int):
         conn.execute("UPDATE pacientes SET activo=0, updated_at=datetime('now','localtime') WHERE id=?", (id_,))
 
 
-def search_pacientes(criterios: Dict) -> List[Dict]:
+def search_pacientes(criterios: Dict, solo_activos: bool = False) -> List[Dict]:
     """
     Búsqueda avanzada multi-criterio.
     criterios puede tener: nombre, apellido, dni, obra_social_id,
     num_afiliado, estado_civil, odontologo_id, enfermedades,
     fecha_nacimiento_desde, fecha_nacimiento_hasta, edad_min, edad_max
     """
-    clauses = ["p.activo = 1"]
+    clauses = ["p.activo = 1"] if solo_activos else []
     params: List[Any] = []
 
     def like(campo, valor):
@@ -192,14 +192,12 @@ def search_pacientes(criterios: Dict) -> List[Dict]:
                 SELECT 1 FROM ficha_periodontal fp
                 JOIN periodontal_medicion pm ON pm.ficha_id = fp.id
                 WHERE fp.paciente_id = p.id
-                AND (
-                    CAST(SUBSTR(pm.prof_bolsa, 1, 1) AS INTEGER) >= ?
-                )
+                AND max_bolsa(pm.prof_bolsa) >= ?
             )
         """)
         params.append(int(criterios["profundidad_min"]))
 
-    where = " AND ".join(clauses)
+    where = " AND ".join(clauses) if clauses else "1=1"
     with get_connection() as conn:
         rows = conn.execute(f"""
             SELECT p.*, os.nombre AS obra_social_nombre
