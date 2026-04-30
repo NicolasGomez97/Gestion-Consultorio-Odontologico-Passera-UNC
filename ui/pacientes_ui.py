@@ -19,6 +19,8 @@ class PacientesFrame(tk.Frame):
     def __init__(self, parent):
         super().__init__(parent, bg=COLORS["bg"])
         self._selected_id: Optional[int] = None
+        self._sort_col: Optional[str] = None
+        self._sort_rev: bool = False
         self._build()
 
     def _build(self):
@@ -65,6 +67,8 @@ class PacientesFrame(tk.Frame):
         scroll_y.pack(side="left", fill="y")
 
         self._tree.tag_configure("odd", background=COLORS["row_odd"])
+        self._tree.tag_configure("baja", foreground="#888888")
+        self._tree.tag_configure("baja_odd", background=COLORS["row_odd"], foreground="#888888")
         self._tree.bind("<Double-1>", lambda _: self._edit())
         self._tree.bind("<<TreeviewSelect>>", self._on_select)
 
@@ -92,12 +96,12 @@ class PacientesFrame(tk.Frame):
     # ── Carga de datos ────────────────────────────────────────────────────────
     def _load_all(self):
         self._search_var.set("")
-        self._populate(models.get_pacientes())
+        self._populate(models.get_pacientes(solo_activos=False))
 
     def _quick_search(self):
         q = self._search_var.get().strip().lower()
         if not q:
-            self._populate(models.get_pacientes())
+            self._populate(models.get_pacientes(solo_activos=False))
             return
         # Búsqueda por nombre, apellido o DNI
         data = models.search_pacientes({"nombre": q}) + \
@@ -115,8 +119,12 @@ class PacientesFrame(tk.Frame):
     def _populate(self, rows):
         self._tree.delete(*self._tree.get_children())
         for i, p in enumerate(rows):
-            tag = "odd" if i % 2 else ""
-            activo = "Activo" if p.get("activo", 1) else "Baja"
+            es_activo = bool(p.get("activo", 1))
+            activo = "Activo" if es_activo else "Baja"
+            if es_activo:
+                tag = "odd" if i % 2 else ""
+            else:
+                tag = "baja_odd" if i % 2 else "baja"
             self._tree.insert("", "end", iid=str(p["id"]), tags=(tag,), values=(
                 p["id"], p["apellido"], p["nombre"],
                 p.get("dni",""), p.get("fecha_nacimiento",""),
@@ -126,11 +134,14 @@ class PacientesFrame(tk.Frame):
         self._lbl_total.configure(text=f"{len(rows)} paciente(s)")
 
     def _sort(self, col):
+        reverse = (self._sort_col == col) and not self._sort_rev
         items = [(self._tree.set(iid, col), iid) for iid in self._tree.get_children()]
-        items.sort()
+        items.sort(reverse=reverse)
         for i, (_, iid) in enumerate(items):
             self._tree.move(iid, "", i)
             self._tree.item(iid, tags=("odd",) if i % 2 else ())
+        self._sort_col = col
+        self._sort_rev = reverse
 
     def _on_select(self, _):
         sel = self._tree.selection()
@@ -254,7 +265,7 @@ class PacienteDialog(tk.Toplevel):
         tab.columnconfigure((1,3), weight=1)
         self._lbl_entry(tab, 0, 0, "Nombre",           "nombre",         True)
         self._lbl_entry(tab, 0, 1, "Apellido",          "apellido",       True)
-        self._lbl_entry(tab, 1, 0, "DNI", "dni")
+        self._lbl_entry(tab, 1, 0, "DNI", "dni", True)
         # Fecha Nacimiento — selector con calendario
         tk.Label(tab, text="Fecha Nacimiento", font=FONTS["body"],
                  bg=COLORS["bg"]).grid(row=1, column=2, sticky="e", padx=6, pady=4)
@@ -344,8 +355,8 @@ class PacienteDialog(tk.Toplevel):
 
     def _save(self):
         data = {k: v.get().strip() for k, v in self._fields.items()}
-        if not data.get("nombre") or not data.get("apellido"):
-            messagebox.showerror("Validación", "Nombre y Apellido son obligatorios.")
+        if not data.get("nombre") or not data.get("apellido") or not data.get("dni"):
+            messagebox.showerror("Validación", "Nombre, Apellido y DNI son obligatorios.")
             return
         data["fecha_nacimiento"] = self._fecha_nac.get()
         data["observaciones"] = self._obs_text.get("1.0", "end-1c").strip()
