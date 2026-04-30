@@ -19,8 +19,8 @@ from ui.theme import COLORS, FONTS
 from ui.app import app_state
 
 # ── Tamaño de cada casilla de diente ──────────────────────────────────────────
-TS = 38          # tooth size in pixels
-GAP = 3          # gap between teeth
+TS = 44          # tooth size in pixels
+GAP = 6          # gap between teeth
 STEP = TS + GAP  # total step per tooth
 
 # ── Colores por estado ─────────────────────────────────────────────────────────
@@ -118,8 +118,8 @@ class OdontogramaFrame(tk.Frame):
         canvas_frame = tk.Frame(self, bg=COLORS["bg"])
         canvas_frame.pack(fill="both", expand=True, padx=8, pady=4)
 
-        canvas_width  = STEP * 16 + 80
-        canvas_height = STEP * 6 + 120
+        canvas_width  = STEP * 16 + 130
+        canvas_height = 440
 
         self._canvas = tk.Canvas(canvas_frame, bg="#F0F4F8",
                                   width=canvas_width, height=canvas_height,
@@ -210,44 +210,53 @@ class OdontogramaFrame(tk.Frame):
         self._tooth_items.clear()
         self._tooth_centers.clear()
 
-        margin_x = 30
-        margin_y = 20
+        margin_x = 58   # espacio para etiquetas a la izquierda
+        margin_y = 32
 
-        # Filas: upper-perm, upper-temp, --- línea central ---, lower-temp, lower-perm
+        # Espaciados verticales
+        NUM_H      = 14  # pixels reservados para el número FDI encima del diente
+        INNER_GAP  = 24  # gap entre fondo de permanente y número de temporal
+        CENTER_GAP = 52  # gap que abarca la línea central (entre filas temporales)
+
+        # Posición Y del borde superior de cada fila de dientes
+        y_pu = margin_y
+        y_tu = y_pu + TS + INNER_GAP + NUM_H   # permanente sup → temporal sup
+        y_tl = y_tu + TS + CENTER_GAP           # temporal sup  → temporal inf
+        y_pl = y_tl + TS + INNER_GAP + NUM_H   # temporal inf  → permanente inf
+
+        cy_line = (y_tu + TS + y_tl) // 2      # mitad del hueco central
+
         rows = [
-            (PERM_UPPER, margin_y,                          "Permanentes superiores"),
-            (TEMP_UPPER, margin_y + STEP + 8,               "Temporales superiores"),
-            (TEMP_LOWER, margin_y + STEP*2 + 30,            "Temporales inferiores"),
-            (PERM_LOWER, margin_y + STEP*3 + 38,            "Permanentes inferiores"),
+            (PERM_UPPER, y_pu, "Per Sup"),
+            (TEMP_UPPER, y_tu, "Tem Sup"),
+            (TEMP_LOWER, y_tl, "Tem Inf"),
+            (PERM_LOWER, y_pl, "Per Inf"),
         ]
 
-        # Línea central
-        cy_line = margin_y + STEP*2 + 16
-        c.create_line(margin_x, cy_line, margin_x + STEP*16 + 10, cy_line,
-                      fill=COLORS["border"], dash=(4, 4))
-        c.create_text(margin_x + STEP*16 + 30, cy_line, text="—", fill=COLORS["text_light"])
+        # Línea central (separador superior/inferior)
+        line_x2 = margin_x + STEP * 16 + 10
+        c.create_line(margin_x, cy_line, line_x2, cy_line,
+                      fill=COLORS["border"], dash=(6, 4), width=1)
 
         for row_fdis, y0, row_label in rows:
-            # Etiqueta de fila
-            c.create_text(margin_x - 8, y0 + TS//2, text=row_label[:3],
+            # Etiqueta de fila a la izquierda
+            c.create_text(margin_x - 10, y0 + TS // 2, text=row_label,
                           font=FONTS["small"], fill=COLORS["text_light"], anchor="e")
             for col, fdi in enumerate(row_fdis):
                 if fdi is None:
                     continue
                 x0 = margin_x + col * STEP
-
-                # Dibujar el diente
                 self._draw_tooth(fdi, x0, y0)
 
-                # Número FDI encima
+                # Número FDI con espacio cómodo encima
                 cx = x0 + TS // 2
-                c.create_text(cx, y0 - 8, text=str(fdi),
+                c.create_text(cx, y0 - NUM_H // 2 - 2, text=str(fdi),
                                font=FONTS["small"], fill=COLORS["text"])
                 self._tooth_centers[fdi] = (cx, y0 + TS // 2)
 
             # Separador entre cuadrantes (entre columna 7 y 8)
             sep_x = margin_x + 8 * STEP - GAP // 2
-            c.create_line(sep_x, y0 - 4, sep_x, y0 + TS + 4,
+            c.create_line(sep_x, y0 - 6, sep_x, y0 + TS + 6,
                           fill=COLORS["text_light"], width=2)
 
     def _draw_tooth(self, fdi: int, x0: int, y0: int):
