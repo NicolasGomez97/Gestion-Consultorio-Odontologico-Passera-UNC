@@ -53,21 +53,43 @@ class PeriodontogramaFrame(tk.Frame):
                                   font=FONTS["body"], bg=COLORS["header_bg"], fg="#BEE3F8")
         self._lbl_pac.pack(padx=20, anchor="w")
 
-        # Controles superiores
+        # Barra de controles: filtro + paciente + acciones (una sola fila)
         ctrl = tk.Frame(self, bg=COLORS["bg"], padx=16, pady=8)
         ctrl.pack(fill="x")
 
-        tk.Label(ctrl, text="Paciente:", font=FONTS["body"],
-                 bg=COLORS["bg"]).pack(side="left")
-        self._pac_var = tk.StringVar()
-        self._pac_combo = ttk.Combobox(ctrl, textvariable=self._pac_var, width=34)
-        self._pac_combo.pack(side="left", padx=6)
-        ttk.Button(ctrl, text="Cargar", command=self._cargar_combo).pack(side="left")
-
+        # Botones de acción a la derecha (se empaquetan primero para reservar espacio)
         ttk.Button(ctrl, text="➕ Nueva Ficha", style="Accent.TButton",
                    command=self._nueva_ficha).pack(side="right", padx=4)
         ttk.Button(ctrl, text="💾 Guardar mediciones", style="Success.TButton",
                    command=self._guardar_mediciones).pack(side="right", padx=4)
+
+        # Filtro por profundidad de bolsa (izquierda, primero)
+        tk.Label(ctrl, text="Prof. bolsa ≥", font=FONTS["body"],
+                 bg=COLORS["bg"]).pack(side="left")
+        self._prof_min_var = tk.StringVar()
+        ttk.Entry(ctrl, textvariable=self._prof_min_var, width=4
+                  ).pack(side="left", padx=4)
+        tk.Label(ctrl, text="mm", font=FONTS["body"],
+                 bg=COLORS["bg"]).pack(side="left")
+        ttk.Button(ctrl, text="🔍 Filtrar",
+                   command=self._filtrar_por_bolsa).pack(side="left", padx=(4, 2))
+        ttk.Button(ctrl, text="↺ Todos",
+                   command=self._reset_filtro).pack(side="left", padx=2)
+        self._lbl_filtro = tk.Label(ctrl, text="", font=FONTS["small"],
+                                     bg=COLORS["bg"], fg=COLORS["text_light"])
+        self._lbl_filtro.pack(side="left", padx=6)
+
+        # Separador visual
+        tk.Label(ctrl, text="│", font=FONTS["body"],
+                 bg=COLORS["bg"], fg=COLORS["border"]).pack(side="left", padx=8)
+
+        # Selector de paciente
+        tk.Label(ctrl, text="Paciente:", font=FONTS["body"],
+                 bg=COLORS["bg"]).pack(side="left")
+        self._pac_var = tk.StringVar()
+        self._pac_combo = ttk.Combobox(ctrl, textvariable=self._pac_var, width=32)
+        self._pac_combo.pack(side="left", padx=6)
+        ttk.Button(ctrl, text="Cargar", command=self._cargar_combo).pack(side="left")
 
         # Notebook: Fichas | Grilla
         self._nb = ttk.Notebook(self)
@@ -333,6 +355,38 @@ class PeriodontogramaFrame(tk.Frame):
                 self._mediciones = ficha.get("mediciones", {})
                 self._render_grilla()
                 self._nb.select(1)
+
+    def _filtrar_por_bolsa(self):
+        val = self._prof_min_var.get().strip()
+        if not val:
+            self._reset_filtro()
+            return
+        try:
+            min_mm = int(val)
+        except ValueError:
+            messagebox.showwarning("Valor inválido",
+                                   "Ingrese un número entero de milímetros.", parent=self)
+            return
+        pacientes = models.search_pacientes({"profundidad_min": str(min_mm)})
+        self._pacientes = pacientes
+        names = [f"{p['apellido']}, {p['nombre']} ({p.get('dni','')})"
+                 for p in pacientes]
+        self._pac_combo["values"] = names
+        self._pac_var.set("")
+        if pacientes:
+            self._lbl_filtro.configure(
+                text=f"{len(pacientes)} paciente(s) con bolsa ≥ {min_mm} mm",
+                fg=COLORS["text_light"])
+        else:
+            self._lbl_filtro.configure(
+                text=f"Ningún paciente con bolsa ≥ {min_mm} mm",
+                fg="#E53E3E")
+
+    def _reset_filtro(self):
+        self._prof_min_var.set("")
+        self._lbl_filtro.configure(text="")
+        self._refresh_pacientes()
+        self._pac_var.set("")
 
     def on_show(self):
         self._refresh_pacientes()
