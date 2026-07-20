@@ -563,7 +563,7 @@ def get_stats() -> Dict:
             "SELECT COUNT(*) FROM turnos WHERE fecha=date('now','localtime')"
         ).fetchone()[0]
         stats["turnos_pendientes"] = conn.execute(
-            "SELECT COUNT(*) FROM turnos WHERE estado='Pendiente' AND fecha >= date('now','localtime')"
+            "SELECT COUNT(*) FROM turnos WHERE estado='pendiente' AND fecha >= date('now','localtime')"
         ).fetchone()[0]
         stats["prestaciones_mes"] = conn.execute(
             "SELECT COUNT(*), COALESCE(SUM(monto),0) FROM registro_prestaciones "
