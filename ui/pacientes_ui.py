@@ -310,16 +310,10 @@ class PacienteDialog(tk.Toplevel):
 
         self._lbl_entry(tab, 1, 0, "N° Afiliado",   "num_afiliado")
 
-        # Titular — Sí / No
-        tk.Label(tab, text="Titular", font=FONTS["body"],
-                 bg=COLORS["bg"]).grid(row=1, column=2, sticky="e", padx=6, pady=4)
-        self._titular_var = tk.StringVar(value="Sí")
-        ttk.Combobox(tab, textvariable=self._titular_var,
-                     values=["Sí", "No"], width=8,
-                     state="readonly").grid(row=1, column=3, sticky="w", padx=6, pady=4)
-        self._fields["titular"] = self._titular_var
-
-        self._lbl_entry(tab, 2, 0, "Grupo Familiar", "grupo_familiar")
+        # Titular y Grupo Familiar: ya no se muestran en el formulario, pero se
+        # conservan como campos ocultos para no perder el valor existente al guardar.
+        self._fields["titular"] = tk.StringVar()
+        self._fields["grupo_familiar"] = tk.StringVar()
 
     def _build_tab3(self, tab):
         tab.columnconfigure(1, weight=1)
