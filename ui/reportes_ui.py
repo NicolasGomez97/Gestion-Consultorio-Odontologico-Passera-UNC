@@ -114,7 +114,7 @@ class ReportesFrame(tk.Frame):
 
         nb.add(ReporteTurnosTab(nb),             text="  📅  Turnos  ")
         nb.add(ReportePrestacionesTab(nb),       text="  💊  Prestaciones  ")
-        nb.add(ReporteOdontologoTab(nb),         text="  👨‍⚕️  Por Odontólogo  ")
+        nb.add(ReporteOdontologoTab(nb),         text="  🩺  Por Odontólogo  ")
         nb.add(ReportePacientesOSTab(nb),        text="  👥  Pacientes / O.S.  ")
         nb.add(ReportePendientesFedTab(nb),      text="  📤  Pendientes Fed.  ")
 
