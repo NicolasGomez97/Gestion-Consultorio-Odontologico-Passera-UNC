@@ -116,7 +116,7 @@ class MainApp(tk.Tk):
             ("🦷  Odontograma",       "odontograma"),
             ("🔬  Periodontal",       "periodontal"),
             ("💊  Prestaciones",      "prestaciones"),
-            ("👨‍⚕️  Odontólogos",     "odontologos"),
+            ("🩺  Odontólogos",       "odontologos"),
             ("🔑  Usuarios",          "usuarios"),
             ("📊  Reportes",          "reportes"),
         ]

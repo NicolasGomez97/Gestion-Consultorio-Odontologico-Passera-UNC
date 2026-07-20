@@ -103,7 +103,7 @@ class HistorialFrame(tk.Frame):
             t.configure(state="disabled")
             t.grid(row=row, column=1, sticky="ew", padx=8, pady=4)
 
-        tk.Label(f, text=f"📅 Fecha: {entry['fecha']}  |  👨‍⚕️ {entry.get('odontologo_nombre','')}",
+        tk.Label(f, text=f"📅 Fecha: {entry['fecha']}  |  🩺 {entry.get('odontologo_nombre','')}",
                  font=FONTS["subtitle"], bg=COLORS["bg"]).grid(row=0, column=0, columnspan=2,
                                                                 sticky="w", padx=8, pady=8)
         lbl("Diagnóstico:",      entry.get("diagnostico",""), 1)

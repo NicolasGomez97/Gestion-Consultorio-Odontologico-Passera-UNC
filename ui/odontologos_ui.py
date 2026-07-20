@@ -17,7 +17,7 @@ class OdontologosFrame(tk.Frame):
     def _build(self):
         hdr = tk.Frame(self, bg=COLORS["header_bg"], pady=14)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="👨‍⚕️  Odontólogos",
+        tk.Label(hdr, text="🩺  Odontólogos",
                  font=FONTS["title"], bg=COLORS["header_bg"], fg=COLORS["white"]).pack(padx=20, anchor="w")
 
         body = tk.Frame(self, bg=COLORS["bg"], padx=16, pady=12)
