@@ -1,14 +1,25 @@
 """
-historial_ui.py — Historial clínico electrónico por paciente.
+historial_ui.py — Historial clínico electrónico por paciente (Historia Clínica
+General: datos de la consulta, antecedentes familiares y personales, consulta
+odontológica, examen bucal, diagnóstico/plan y consentimiento informado).
 """
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from typing import Optional
 import datetime
 import models
+import historial_fields
 from ui.theme import COLORS, FONTS
 from ui.app import app_state
-from ui.widgets import DateEntry
+from ui.widgets import DateEntry, ScrollableFrame
+
+_SECTION_TAB_TITLES = {
+    "af":      "Antecedentes Familiares",
+    "ap":      "Antecedentes Personales",
+    "co":      "Consulta Odontológica",
+    "eb":      "Examen Bucal e Higiene",
+    "consent": "Consentimiento",
+}
 
 
 class HistorialFrame(tk.Frame):
@@ -91,30 +102,96 @@ class HistorialFrame(tk.Frame):
     def _build_detail(self, entry: dict):
         for w in self._detail.winfo_children():
             w.destroy()
-        f = self._detail
-        f.columnconfigure(1, weight=1)
 
-        def lbl(label, value, row):
-            tk.Label(f, text=label, font=FONTS["subtitle"],
-                     bg=COLORS["bg"], fg=COLORS["accent"]).grid(row=row, column=0, sticky="ne", padx=8, pady=4)
-            t = tk.Text(f, height=3, font=FONTS["body"], wrap="word",
-                        state="normal", bg=COLORS["white"])
-            t.insert("1.0", str(value or ""))
-            t.configure(state="disabled")
-            t.grid(row=row, column=1, sticky="ew", padx=8, pady=4)
+        scroll = ScrollableFrame(self._detail)
+        scroll.pack(fill="both", expand=True)
+        f = scroll.body
+        f.columnconfigure(1, weight=1)
+        row = 0
+
+        def add_header(text):
+            nonlocal row
+            tk.Label(f, text=text, font=FONTS["subtitle"], bg=COLORS["bg"],
+                     fg=COLORS["accent"]).grid(row=row, column=0, columnspan=2,
+                                                sticky="w", padx=8, pady=(14, 4))
+            row += 1
+
+        def add_field(label, value):
+            nonlocal row
+            tk.Label(f, text=label, font=FONTS["body"], bg=COLORS["bg"],
+                     fg=COLORS["text_light"], anchor="ne", justify="right",
+                     wraplength=180).grid(row=row, column=0, sticky="ne", padx=8, pady=2)
+            tk.Label(f, text=str(value), font=FONTS["body"], bg=COLORS["bg"],
+                     wraplength=420, justify="left").grid(row=row, column=1, sticky="w", padx=8, pady=2)
+            row += 1
 
         tk.Label(f, text=f"📅 Fecha: {entry['fecha']}  |  🩺 {entry.get('odontologo_nombre','')}",
-                 font=FONTS["subtitle"], bg=COLORS["bg"]).grid(row=0, column=0, columnspan=2,
+                 font=FONTS["subtitle"], bg=COLORS["bg"]).grid(row=row, column=0, columnspan=2,
                                                                 sticky="w", padx=8, pady=8)
-        lbl("Diagnóstico:",      entry.get("diagnostico",""), 1)
-        lbl("Tratamiento:",      entry.get("tratamiento",""), 2)
-        lbl("Notas:",            entry.get("notas",""), 3)
-        lbl("Informes externos:", entry.get("informes_ext",""), 4)
+        row += 1
+        if entry.get("lugar"):
+            add_field("Lugar", entry["lugar"])
 
-        rad = entry.get("radiografias", 0)
-        tk.Label(f, text=f"📷 Radiografías adjuntas: {rad}",
-                 font=FONTS["body"], bg=COLORS["bg"]).grid(row=5, column=0, columnspan=2,
-                                                            sticky="w", padx=8, pady=4)
+        add_header("Diagnóstico y Plan")
+        add_field("Diagnóstico", entry.get("diagnostico") or "—")
+        if entry.get("tratamiento"):
+            add_field("Tratamiento", entry["tratamiento"])
+        if entry.get("notas"):
+            add_field("Notas", entry["notas"])
+        if entry.get("informes_ext"):
+            add_field("Informes externos", entry["informes_ext"])
+        add_field("Radiografías adjuntas", entry.get("radiografias", 0))
+
+        # Secciones extendidas: solo se muestran los campos con valor cargado
+        for skey, title, fields in historial_fields.SECTIONS:
+            if skey == "datos":
+                continue
+            rows_to_show = []
+            for field in fields:
+                key, ftype, label = field[0], field[1], field[2]
+                val = entry.get(key)
+                if val in (None, ""):
+                    continue
+                display = ("Sí" if val == 1 else "No") if ftype == "bool" else val
+                rows_to_show.append((label, display))
+            if rows_to_show:
+                add_header(title)
+                for label, display in rows_to_show:
+                    add_field(label, display)
+
+        btn_row = tk.Frame(f, bg=COLORS["bg"])
+        btn_row.grid(row=row, column=0, columnspan=2, sticky="w", padx=8, pady=16)
+        ttk.Button(btn_row, text="🖨️ Exportar PDF",
+                   command=lambda: self._export_pdf(entry)).pack(side="left")
+
+    def _export_pdf(self, entry: dict):
+        pac = models.get_paciente(entry["paciente_id"])
+        od = models.get_odontologo(entry["odontologo_id"]) if entry.get("odontologo_id") else None
+        apellido = (pac or {}).get("apellido", "paciente")
+        default_name = f"HistoriaClinica_{apellido}_{entry.get('fecha','')}.pdf".replace(" ", "_")
+        path = filedialog.asksaveasfilename(
+            title="Guardar Historia Clínica en PDF",
+            defaultextension=".pdf",
+            initialfile=default_name,
+            filetypes=[("PDF", "*.pdf")],
+        )
+        if not path:
+            return
+        try:
+            import pdf_export
+        except ImportError:
+            messagebox.showerror(
+                "Falta un paquete",
+                "La exportación a PDF requiere el paquete 'reportlab'.\n"
+                "Instálelo con:  pip install reportlab"
+            )
+            return
+        try:
+            pdf_export.generar_pdf_historial(path, entry, pac or {}, od)
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo generar el PDF:\n{e}")
+            return
+        messagebox.showinfo("PDF generado", f"El PDF se guardó en:\n{path}")
 
     def _refresh_pacientes(self):
         self._pacientes = models.get_pacientes()
@@ -207,58 +284,125 @@ class HistorialDialog(tk.Toplevel):
         self._id = historial_id
         self._pac_id = paciente_id
         self.title("Nueva Entrada Historial" if not historial_id else "Editar Entrada")
-        self.geometry("640x560")
+        self.geometry("860x680")
+        self.resizable(True, True)
         self.grab_set()
         self.configure(bg=COLORS["bg"])
         self._data = models.get_historial_entry(historial_id) if historial_id else {}
         self._odontologos = models.get_odontologos()
+        self._ext_vars = {}  # key -> (kind, widget_or_var)
         self._build()
         self._load()
 
     def _build(self):
-        frame = tk.Frame(self, bg=COLORS["bg"], padx=20, pady=16)
-        frame.pack(fill="both", expand=True)
-        frame.columnconfigure(1, weight=1)
+        # ── Fila superior: odontólogo, fecha, lugar, radiografías ───────────
+        top = tk.Frame(self, bg=COLORS["bg"], padx=20, pady=12)
+        top.pack(fill="x")
+        top.columnconfigure(1, weight=1)
+        top.columnconfigure(3, weight=1)
 
-        # Odontólogo
-        tk.Label(frame, text="Odontólogo *", font=FONTS["body"],
-                 bg=COLORS["bg"]).grid(row=0, column=0, sticky="e", padx=6, pady=6)
+        tk.Label(top, text="Odontólogo *", font=FONTS["body"],
+                 bg=COLORS["bg"]).grid(row=0, column=0, sticky="e", padx=6, pady=4)
         self._od_var = tk.StringVar()
         od_names = [f"{o['apellido']}, {o['nombre']}" for o in self._odontologos]
-        ttk.Combobox(frame, textvariable=self._od_var, values=od_names,
-                     width=32, state="readonly").grid(row=0, column=1, sticky="w", padx=6)
+        ttk.Combobox(top, textvariable=self._od_var, values=od_names,
+                     width=30, state="readonly").grid(row=0, column=1, sticky="w", padx=6, pady=4)
 
-        # Fecha — selector con calendario
-        tk.Label(frame, text="Fecha *", font=FONTS["body"],
-                 bg=COLORS["bg"]).grid(row=1, column=0, sticky="e", padx=6, pady=6)
-        self._fecha = DateEntry(frame)
+        tk.Label(top, text="Fecha *", font=FONTS["body"],
+                 bg=COLORS["bg"]).grid(row=0, column=2, sticky="e", padx=6, pady=4)
+        self._fecha = DateEntry(top)
         self._fecha.set(datetime.date.today().isoformat())
-        self._fecha.grid(row=1, column=1, sticky="w", padx=6)
+        self._fecha.grid(row=0, column=3, sticky="w", padx=6, pady=4)
 
-        # Radiografías
-        tk.Label(frame, text="Radiografías (cantidad)", font=FONTS["body"],
-                 bg=COLORS["bg"]).grid(row=2, column=0, sticky="e", padx=6, pady=6)
+        tk.Label(top, text="Lugar", font=FONTS["body"],
+                 bg=COLORS["bg"]).grid(row=1, column=0, sticky="e", padx=6, pady=4)
+        lugar_var = tk.StringVar()
+        ttk.Entry(top, textvariable=lugar_var, width=32).grid(row=1, column=1, sticky="w", padx=6, pady=4)
+        self._ext_vars["lugar"] = ("text", lugar_var)
+
+        tk.Label(top, text="Radiografías (cantidad)", font=FONTS["body"],
+                 bg=COLORS["bg"]).grid(row=1, column=2, sticky="e", padx=6, pady=4)
         self._rad_var = tk.StringVar(value="0")
-        ttk.Spinbox(frame, textvariable=self._rad_var, from_=0, to=20,
-                    width=6).grid(row=2, column=1, sticky="w", padx=6)
+        ttk.Spinbox(top, textvariable=self._rad_var, from_=0, to=20,
+                    width=6).grid(row=1, column=3, sticky="w", padx=6, pady=4)
 
-        def text_row(row, label, attr):
-            tk.Label(frame, text=label, font=FONTS["body"],
-                     bg=COLORS["bg"]).grid(row=row, column=0, sticky="ne", padx=6, pady=6)
-            t = tk.Text(frame, height=4, width=55, font=FONTS["body"], wrap="word")
-            t.grid(row=row, column=1, sticky="ew", padx=6, pady=6)
-            setattr(self, f"_{attr}_text", t)
+        # ── Pestañas ─────────────────────────────────────────────────────────
+        nb = ttk.Notebook(self)
+        nb.pack(fill="both", expand=True, padx=12, pady=(0, 8))
 
-        text_row(3, "Diagnóstico *",    "diagnostico")
-        text_row(4, "Tratamiento",      "tratamiento")
-        text_row(5, "Notas",            "notas")
-        text_row(6, "Informes externos","informes_ext")
+        section_map = {skey: fields for skey, _title, fields in historial_fields.SECTIONS}
+
+        for skey in ("af", "ap", "co", "eb"):
+            tab = ScrollableFrame(nb)
+            nb.add(tab, text=f"  {_SECTION_TAB_TITLES[skey]}  ")
+            self._build_section_fields(tab.body, section_map[skey])
+
+        diag_tab = tk.Frame(nb, bg=COLORS["bg"])
+        nb.add(diag_tab, text="  Diagnóstico y Plan  ")
+        self._build_diagnostico_tab(diag_tab)
+
+        consent_tab = tk.Frame(nb, bg=COLORS["bg"])
+        nb.add(consent_tab, text="  Consentimiento  ")
+        self._build_section_fields(consent_tab, section_map["consent"])
 
         btn_bar = tk.Frame(self, bg=COLORS["bg"])
         btn_bar.pack(fill="x", padx=20, pady=8)
         ttk.Button(btn_bar, text="💾 Guardar", style="Accent.TButton",
                    command=self._save).pack(side="right", padx=4)
         ttk.Button(btn_bar, text="Cancelar", command=self.destroy).pack(side="right", padx=4)
+
+    def _build_section_fields(self, parent, fields):
+        parent.columnconfigure(1, weight=1)
+        for row, field in enumerate(fields):
+            key, ftype, label = field[0], field[1], field[2]
+            tk.Label(parent, text=label, font=FONTS["body"], bg=COLORS["bg"],
+                     wraplength=280, justify="left").grid(row=row, column=0, sticky="ne", padx=8, pady=5)
+            if ftype == "bool":
+                var = tk.StringVar()
+                ttk.Combobox(parent, textvariable=var, values=["", "Sí", "No"],
+                             width=8, state="readonly").grid(row=row, column=1, sticky="w", padx=8, pady=5)
+                self._ext_vars[key] = ("bool", var)
+            elif ftype == "choice":
+                options = field[3]
+                var = tk.StringVar()
+                ttk.Combobox(parent, textvariable=var, values=[""] + options,
+                             width=20, state="readonly").grid(row=row, column=1, sticky="w", padx=8, pady=5)
+                self._ext_vars[key] = ("text", var)
+            elif ftype == "multichoice":
+                options = field[3]
+                sub = tk.Frame(parent, bg=COLORS["bg"])
+                sub.grid(row=row, column=1, sticky="w", padx=8, pady=5)
+                opt_vars = {}
+                ncols = 2
+                for i, opt in enumerate(options):
+                    v = tk.BooleanVar()
+                    ttk.Checkbutton(sub, text=opt, variable=v).grid(
+                        row=i // ncols, column=i % ncols, sticky="w", padx=(0, 14), pady=1)
+                    opt_vars[opt] = v
+                self._ext_vars[key] = ("multichoice", opt_vars)
+            elif ftype == "area":
+                t = tk.Text(parent, height=3, width=48, font=FONTS["body"], wrap="word")
+                t.grid(row=row, column=1, sticky="ew", padx=8, pady=5)
+                self._ext_vars[key] = ("area", t)
+            else:
+                var = tk.StringVar()
+                ttk.Entry(parent, textvariable=var, width=42).grid(row=row, column=1, sticky="w", padx=8, pady=5)
+                self._ext_vars[key] = ("text", var)
+
+    def _build_diagnostico_tab(self, tab):
+        tab.columnconfigure(1, weight=1)
+
+        def text_row(row, label, attr):
+            tk.Label(tab, text=label, font=FONTS["body"],
+                     bg=COLORS["bg"]).grid(row=row, column=0, sticky="ne", padx=10, pady=8)
+            t = tk.Text(tab, height=4, width=55, font=FONTS["body"], wrap="word")
+            t.grid(row=row, column=1, sticky="ew", padx=10, pady=8)
+            setattr(self, f"_{attr}_text", t)
+
+        text_row(0, "Diagnóstico *",     "diagnostico")
+        text_row(1, "Tratamiento",       "tratamiento")
+        text_row(2, "Notas / Observaciones", "notas")
+        text_row(3, "Informes externos", "informes_ext")
 
     def _load(self):
         d = self._data
@@ -273,6 +417,18 @@ class HistorialDialog(tk.Toplevel):
         for attr in ("diagnostico", "tratamiento", "notas", "informes_ext"):
             t = getattr(self, f"_{attr}_text")
             t.insert("1.0", d.get(attr, "") or "")
+        for key, (kind, w) in self._ext_vars.items():
+            val = d.get(key)
+            if kind == "bool":
+                w.set("Sí" if val == 1 else ("No" if val == 0 else ""))
+            elif kind == "area":
+                w.insert("1.0", val or "")
+            elif kind == "multichoice":
+                selected = {s.strip() for s in (val or "").split(",") if s.strip()}
+                for opt, v in w.items():
+                    v.set(opt in selected)
+            else:
+                w.set(val or "")
 
     def _save(self):
         od_str = self._od_var.get()
@@ -298,6 +454,17 @@ class HistorialDialog(tk.Toplevel):
             "radiografias":  int(self._rad_var.get() or 0),
             "informes_ext":  self._informes_ext_text.get("1.0", "end-1c").strip(),
         }
+        for key, (kind, w) in self._ext_vars.items():
+            if kind == "bool":
+                v = w.get()
+                data[key] = 1 if v == "Sí" else (0 if v == "No" else None)
+            elif kind == "area":
+                data[key] = w.get("1.0", "end-1c").strip() or None
+            elif kind == "multichoice":
+                chosen = [opt for opt, v in w.items() if v.get()]
+                data[key] = ", ".join(chosen) or None
+            else:
+                data[key] = w.get().strip() or None
         if self._id:
             data["id"] = self._id
         models.save_historial(data)
