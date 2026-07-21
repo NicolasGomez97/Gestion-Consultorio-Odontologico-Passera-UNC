@@ -352,6 +352,16 @@ class PacienteDialog(tk.Toplevel):
         if not data.get("nombre") or not data.get("apellido") or not data.get("dni"):
             messagebox.showerror("Validación", "Nombre, Apellido y DNI son obligatorios.")
             return
+
+        existente = models.get_paciente_by_dni(data["dni"])
+        if existente and existente["id"] != self._id:
+            messagebox.showerror(
+                "Validación",
+                f"Ya existe un paciente registrado con el DNI {data['dni']} "
+                f"({existente['apellido']}, {existente['nombre']})."
+            )
+            return
+
         data["fecha_nacimiento"] = self._fecha_nac.get()
         data["observaciones"] = self._obs_text.get("1.0", "end-1c").strip()
         data["alergias"]      = self._alergias_text.get("1.0", "end-1c").strip()
