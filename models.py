@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 import json
 import hashlib
 from database import get_connection
+import historial_fields
 
 # ─────────────────────────────────────────────────────────────
 # OBRAS SOCIALES
@@ -114,6 +115,14 @@ def get_paciente(id_: int) -> Optional[Dict]:
             LEFT JOIN obras_sociales os ON os.id = p.obra_social_id
             WHERE p.id=?
         """, (id_,)).fetchone()
+        return dict(row) if row else None
+
+
+def get_paciente_by_dni(dni: str) -> Optional[Dict]:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM pacientes WHERE dni=?", (dni,)
+        ).fetchone()
         return dict(row) if row else None
 
 
@@ -306,9 +315,13 @@ def get_historial_entry(id_: int) -> Optional[Dict]:
         return dict(row) if row else None
 
 
+_HISTORIAL_BASE_COLS = ["paciente_id", "odontologo_id", "fecha", "diagnostico",
+                        "tratamiento", "notas", "radiografias", "informes_ext"]
+_HISTORIAL_EXT_COLS = historial_fields.all_keys()
+
+
 def save_historial(data: Dict) -> int:
-    cols = ["paciente_id", "odontologo_id", "fecha", "diagnostico",
-            "tratamiento", "notas", "radiografias", "informes_ext"]
+    cols = _HISTORIAL_BASE_COLS + _HISTORIAL_EXT_COLS
     vals = [data.get(c) for c in cols]
     with get_connection() as conn:
         if data.get("id"):
