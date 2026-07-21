@@ -5,6 +5,7 @@ Consultorio Odontológico Passera — Sistema de Gestión
 import sqlite3
 import os
 import hashlib
+import historial_fields
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "clinica.db")
 
@@ -27,6 +28,14 @@ def get_connection() -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode = WAL")
     conn.create_function("max_bolsa", 1, _max_bolsa)
     return conn
+
+
+def _ensure_columns(conn: sqlite3.Connection, table: str, columns: list[tuple[str, str]]):
+    """Agrega a `table` las columnas de `columns` (nombre, tipo SQL) que falten."""
+    existentes = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    for name, sql_type in columns:
+        if name not in existentes:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}")
 
 
 def init_db():
@@ -212,6 +221,15 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_prestaciones_paciente ON registro_prestaciones(paciente_id);
         CREATE INDEX IF NOT EXISTS idx_prestaciones_fecha    ON registro_prestaciones(fecha);
         """)
+
+        # ─── Migración: columnas extendidas de Historia Clínica General ───────
+        # (antecedentes familiares/personales, consulta odontológica, examen
+        # bucal, consentimiento). Se agregan con ALTER TABLE porque
+        # CREATE TABLE IF NOT EXISTS no modifica una tabla ya existente.
+        _ensure_columns(conn, "historial_clinico", [
+            (key, "INTEGER" if ftype == "bool" else "TEXT")
+            for key, ftype, *_ in historial_fields.all_fields()
+        ])
 
         # ─── Seed usuario admin ────────────────────────────────────────────────
         if not conn.execute("SELECT 1 FROM usuarios LIMIT 1").fetchone():

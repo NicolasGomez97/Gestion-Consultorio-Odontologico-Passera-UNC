@@ -83,7 +83,7 @@ def _build_message(cfg: Dict, to_address: str, to_name: str,
             <td style="padding:10px 14px;border:1px solid #bee3f8">{hora} hs ({dur} min)</td>
           </tr>
           <tr style="background:#EBF8FF">
-            <td style="padding:10px 14px;font-weight:bold;border:1px solid #bee3f8">👨‍⚕️ Profesional</td>
+            <td style="padding:10px 14px;font-weight:bold;border:1px solid #bee3f8">🩺 Profesional</td>
             <td style="padding:10px 14px;border:1px solid #bee3f8">{od_nombre}</td>
           </tr>
           <tr>
