@@ -187,7 +187,12 @@ class HistorialFrame(tk.Frame):
             )
             return
         try:
-            pdf_export.generar_pdf_historial(path, entry, pac or {}, od)
+            odontograma = models.get_odontograma(entry["paciente_id"])
+        except Exception:
+            odontograma = None
+
+        try:
+            pdf_export.generar_pdf_historial(path, entry, pac or {}, od, odontograma=odontograma)
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo generar el PDF:\n{e}")
             return
